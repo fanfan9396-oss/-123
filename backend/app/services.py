@@ -1020,6 +1020,95 @@ def get_generated_skill(db_path: Path | str, generated_id: str) -> dict[str, Any
         return _generated_payload(connection, row)
 
 
+
+def get_generated_skill_feedback(db_path: Path | str, generated_id: str) -> dict[str, Any]:
+    initialize_database(db_path)
+    with closing(connect_database(db_path)) as connection:
+        generated = _generated_row(connection, generated_id)
+        if generated is None:
+            raise ProjectNotFound("GeneratedSkill 不存在")
+        report = connection.execute("SELECT * FROM quality_reports WHERE generated_skill_id=? ORDER BY created_at DESC, id DESC LIMIT 1", (generated_id,)).fetchone()
+        if report is None:
+            return {"generated_skill_id": generated_id, "quality_report_id": None, "version_fingerprint": _generated_version_fingerprint(connection, generated), "items": []}
+        summary = _json_loads(report["summary_json"], {})
+        checks = summary.get("checks", {}) if isinstance(summary, dict) else {}
+        items: list[dict[str, Any]] = []
+        for dimension, result_key in (("traceability", "traceability_result"), ("boundary", "boundary_result"), ("export", "export_result"), ("license_privacy", "license_privacy_result")):
+            check = checks.get(dimension, {}) if isinstance(checks, dict) else {}
+            for severity, messages in (("fail", check.get("failures", [])), ("warn", check.get("warnings", []))):
+                for message in messages if isinstance(messages, list) else []:
+                    items.append({
+                        "id": f"{report['id']}:{dimension}:{severity}:{len(items)}",
+                        "dimension": dimension,
+                        "result": report[result_key],
+                        "severity": severity,
+                        "message": message,
+                        "target_kind": "SkillPlan",
+                        "target_id": generated["skill_plan_id"],
+                        "generated_skill_id": generated_id,
+                        "automatic_mutation": False,
+                        "revision_action": "人工检查并决定是否修订 Evidence、Capability 或 SkillPlan",
+                    })
+        if not items:
+            items.append({
+                "id": f"{report['id']}:summary",
+                "dimension": "summary",
+                "result": report["status"],
+                "severity": "info",
+                "message": "当前质量检查没有生成失败或警告项。",
+                "target_kind": "SkillPlan",
+                "target_id": generated["skill_plan_id"],
+                "generated_skill_id": generated_id,
+                "automatic_mutation": False,
+                "revision_action": "无需自动修改；如需改进，请人工创建新版本并重新评测",
+            })
+        return {"generated_skill_id": generated_id, "quality_report_id": report["id"], "version_fingerprint": report["version_fingerprint"], "status": report["status"], "items": items}
+
+
+def _compare_manifest(left: list[Any], right: list[Any]) -> dict[str, Any]:
+    left_by_path = {item.get("path"): item for item in left if isinstance(item, dict) and item.get("path")}
+    right_by_path = {item.get("path"): item for item in right if isinstance(item, dict) and item.get("path")}
+    added = sorted(set(right_by_path) - set(left_by_path))
+    removed = sorted(set(left_by_path) - set(right_by_path))
+    changed = sorted(path for path in set(left_by_path) & set(right_by_path) if left_by_path[path].get("sha256") != right_by_path[path].get("sha256"))
+    unchanged = sorted(path for path in set(left_by_path) & set(right_by_path) if left_by_path[path].get("sha256") == right_by_path[path].get("sha256"))
+    return {"added": added, "removed": removed, "changed": changed, "unchanged": unchanged}
+
+
+def _compare_json_keys(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    left_keys, right_keys = set(left), set(right)
+    changed = sorted(key for key in left_keys & right_keys if left[key] != right[key])
+    return {"added": sorted(right_keys - left_keys), "removed": sorted(left_keys - right_keys), "changed": changed, "unchanged": sorted(key for key in left_keys & right_keys if left[key] == right[key])}
+
+
+def compare_generated_skills(db_path: Path | str, plan_id: str, from_id: str, to_id: str) -> dict[str, Any]:
+    initialize_database(db_path)
+    with closing(connect_database(db_path)) as connection:
+        plan = connection.execute("SELECT id FROM skill_plans WHERE id=?", (plan_id,)).fetchone()
+        if plan is None:
+            raise ProjectNotFound("SkillPlan 不存在")
+        left = _generated_row(connection, from_id)
+        right = _generated_row(connection, to_id)
+        if left is None or right is None:
+            raise ProjectNotFound("GeneratedSkill 不存在")
+        if left["skill_plan_id"] != plan_id or right["skill_plan_id"] != plan_id:
+            raise ServiceError("只能比较同一 SkillPlan 的 GeneratedSkill")
+        left_manifest = _json_loads(left["file_manifest"], [])
+        right_manifest = _json_loads(right["file_manifest"], [])
+        left_map = _json_loads(left["source_map"], {})
+        right_map = _json_loads(right["source_map"], {})
+        report_rows = connection.execute("SELECT * FROM quality_reports WHERE generated_skill_id IN (?, ?) ORDER BY created_at", (from_id, to_id)).fetchall()
+        reports = [{"id": row["id"], "generated_skill_id": row["generated_skill_id"], "status": row["status"], "version_fingerprint": row["version_fingerprint"], "created_at": row["created_at"]} for row in report_rows]
+        return {
+            "skill_plan_id": plan_id,
+            "from": {"id": from_id, "status": left["status"], "version_fingerprint": _generated_version_fingerprint(connection, left)},
+            "to": {"id": to_id, "status": right["status"], "version_fingerprint": _generated_version_fingerprint(connection, right)},
+            "files": _compare_manifest(left_manifest if isinstance(left_manifest, list) else [], right_manifest if isinstance(right_manifest, list) else []),
+            "source_map": _compare_json_keys(left_map if isinstance(left_map, dict) else {}, right_map if isinstance(right_map, dict) else {}),
+            "quality_reports": reports,
+        }
+
+
 def export_generated_skill(db_path: Path | str, generated_id: str, output_path: str, overwrite: bool, confirm: bool) -> dict[str, Any]:
     if not confirm:
         raise ServiceError("导出需要明确 confirm=true")
