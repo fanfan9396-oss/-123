@@ -57,3 +57,11 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 14px; font-size: clamp(42px, 7v
 .checkbox-label { display:flex; align-items:center; gap:9px; }
 .checkbox-label input { width:auto; }
 .alert.info { color:#c3d1ff; border:1px solid #405a94; background:#172443; }
+
+.source-context-card { border-color:#5473ae; }
+.source-context-evidence { display:grid; gap:5px; padding:12px; border-radius:10px; background:#0d1627; }
+.source-context-evidence span,.source-context-link small { color:#9dacbf; font-size:12px; }
+.source-context-links { display:grid; gap:10px; }
+.source-context-link { display:grid; gap:7px; padding:13px; border:1px solid #2b3b58; border-radius:11px; background:#0d1627; }
+.source-context-link pre { margin:0; padding:11px; border-radius:8px; color:#d7e1ff; background:#09111f; white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; line-height:1.55; }
+.source-context-link code { color:#8296d2; font-size:11px; overflow-wrap:anywhere; }

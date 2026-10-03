@@ -30,6 +30,7 @@ from .services import (
     create_evidence,
     review_evidence,
     evidence_source_map,
+    evidence_source_context,
     cluster_capabilities,
     create_capability,
     merge_capabilities,
@@ -415,6 +416,15 @@ def create_app(db_path: Path | str | None = None) -> FastAPI:
     def review_evidence_endpoint(evidence_id: str, request: EvidenceReviewRequest) -> dict[str, Any]:
         try:
             return review_evidence(resolved_db_path, evidence_id, request.action, request.note)
+        except ProjectNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ServiceError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/jobs/{job_id}/evidence/{evidence_id}/source-context")
+    def evidence_source_context_endpoint(job_id: str, evidence_id: str) -> dict[str, Any]:
+        try:
+            return evidence_source_context(resolved_db_path, job_id, evidence_id)
         except ProjectNotFound as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ServiceError as exc:

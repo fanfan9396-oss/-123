@@ -541,6 +541,36 @@ def review_evidence(db_path: Path | str, evidence_id: str, action: str, note: st
         return _evidence_payload(connection, connection.execute("SELECT * FROM evidences WHERE id = ?", (evidence_id,)).fetchone())
 
 
+def evidence_source_context(db_path: Path | str, job_id: str, evidence_id: str) -> dict[str, Any]:
+    initialize_database(db_path)
+    with closing(connect_database(db_path)) as connection:
+        job = _job_row(connection, job_id)
+        if job is None:
+            raise ProjectNotFound("Job 不存在")
+        evidence = connection.execute("SELECT * FROM evidences WHERE id=?", (evidence_id,)).fetchone()
+        if evidence is None:
+            raise ProjectNotFound("Evidence 不存在")
+        if evidence["job_id"] != job_id:
+            raise ServiceError("Evidence 不属于当前 Job")
+        links = connection.execute(
+            """
+            SELECT ee.excerpt_id, ee.relation_kind, e.source_id, e.start_line, e.end_line,
+                   e.excerpt_text, s.title AS source_title, s.original_path, s.format,
+                   s.snapshot_sha256
+            FROM evidence_excerpts ee
+            JOIN excerpts e ON e.id=ee.excerpt_id
+            JOIN sources s ON s.id=e.source_id
+            WHERE ee.evidence_id=? AND s.project_id=?
+            ORDER BY e.start_line, ee.relation_kind
+            """,
+            (evidence_id, job["project_id"]),
+        ).fetchall()
+        return {
+            "evidence": {"id": evidence["id"], "text": evidence["text"], "review_status": evidence["review_status"]},
+            "links": [_row_dict(link) for link in links],
+        }
+
+
 def evidence_source_map(db_path: Path | str, evidence_id: str) -> dict[str, Any]:
     initialize_database(db_path)
     with closing(connect_database(db_path)) as connection:
