@@ -1,0 +1,4 @@
+"""Local development requirements for S1A."""
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.13.4

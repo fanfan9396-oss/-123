@@ -1,0 +1,39 @@
+# Local secrets and runtime state
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.sqlite
+*.sqlite3
+*.db
+
+# Imported/private source material and generated local artifacts
+uploads/
+imports/
+exports/
+private-data/
+*.bak
+*.tmp
+
+# Local caches and dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.next/
+dist/
+build/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Internal truth and local-only checkpoint material
+dev-docs/
+AGENTS.md
+data/
+output/
