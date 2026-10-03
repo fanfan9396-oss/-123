@@ -50,3 +50,10 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 14px; font-size: clamp(42px, 7v
 .quality-report.pass { border-color:#2d8b6b; }
 .quality-report.needs_revision { border-color:#967534; }
 .quality-report.blocked { border-color:#8b3441; }
+
+.modal-card { display:grid; gap:16px; margin-bottom:18px; padding:20px; border:1px solid #5269a6; border-radius:16px; background:linear-gradient(150deg,rgba(74,93,169,.16),transparent 45%),#101827; box-shadow:0 18px 50px rgba(0,0,0,.18); }
+.modal-form { display:grid; gap:13px; }
+.modal-form textarea { min-height:88px; resize:vertical; }
+.checkbox-label { display:flex; align-items:center; gap:9px; }
+.checkbox-label input { width:auto; }
+.alert.info { color:#c3d1ff; border:1px solid #405a94; background:#172443; }

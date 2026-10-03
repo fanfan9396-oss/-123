@@ -48,6 +48,8 @@ from .services import (
     skill_plan_source_map,
     compile_skill_preview,
     export_generated_skill,
+    list_generated_skills,
+    get_generated_skill,
     create_scenario,
     list_scenarios,
     create_evaluation,
@@ -432,6 +434,20 @@ def create_app(db_path: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ServiceError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/skill-plans/{plan_id}/generated-skills")
+    def list_generated_skills_endpoint(plan_id: str) -> list[dict[str, Any]]:
+        try:
+            return list_generated_skills(resolved_db_path, plan_id)
+        except ProjectNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/generated-skills/{generated_id}")
+    def get_generated_skill_endpoint(generated_id: str) -> dict[str, Any]:
+        try:
+            return get_generated_skill(resolved_db_path, generated_id)
+        except ProjectNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.post("/api/generated-skills/{generated_id}/export")
     def export_generated_skill_endpoint(generated_id: str, request: CompileExportRequest) -> dict[str, Any]:

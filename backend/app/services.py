@@ -958,9 +958,36 @@ def compile_skill_preview(db_path: Path | str, plan_id: str) -> dict[str, Any]:
         source_map["references/capabilities.md"] = {"capabilities": capability_names}
         files.append({"path": "references/capabilities.md", "content": references, "sha256": hashlib.sha256(references.encode("utf-8")).hexdigest(), "source_keys": ["references/capabilities.md"]})
         generated_id = str(uuid.uuid4())
-        connection.execute("INSERT INTO generated_skills (id, skill_plan_id, status, file_manifest, source_map) VALUES (?, ?, 'preview', ?, ?)", (generated_id, plan_id, json.dumps([{k: v for k, v in item.items() if k != 'content'} for item in files], ensure_ascii=False), json.dumps(source_map, ensure_ascii=False)))
+        connection.execute("INSERT INTO generated_skills (id, skill_plan_id, status, file_manifest, source_map) VALUES (?, ?, 'preview', ?, ?)", (generated_id, plan_id, json.dumps(files, ensure_ascii=False), json.dumps(source_map, ensure_ascii=False)))
         connection.commit()
         return {"id": generated_id, "skill_plan_id": plan_id, "status": "preview", "files": files, "source_map": source_map}
+
+
+def _generated_payload(connection: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+    item = _row_dict(row)
+    manifest = _json_loads(item.get("file_manifest"), [])
+    item["files"] = manifest if isinstance(manifest, list) else []
+    item["source_map"] = _json_loads(item.get("source_map"), {})
+    item.pop("file_manifest", None)
+    return item
+
+
+def list_generated_skills(db_path: Path | str, plan_id: str) -> list[dict[str, Any]]:
+    initialize_database(db_path)
+    with closing(connect_database(db_path)) as connection:
+        if connection.execute("SELECT 1 FROM skill_plans WHERE id=?", (plan_id,)).fetchone() is None:
+            raise ProjectNotFound("SkillPlan 不存在")
+        rows = connection.execute("SELECT * FROM generated_skills WHERE skill_plan_id=? ORDER BY created_at DESC", (plan_id,)).fetchall()
+        return [_generated_payload(connection, row) for row in rows]
+
+
+def get_generated_skill(db_path: Path | str, generated_id: str) -> dict[str, Any]:
+    initialize_database(db_path)
+    with closing(connect_database(db_path)) as connection:
+        row = _generated_row(connection, generated_id)
+        if row is None:
+            raise ProjectNotFound("GeneratedSkill 不存在")
+        return _generated_payload(connection, row)
 
 
 def export_generated_skill(db_path: Path | str, generated_id: str, output_path: str, overwrite: bool, confirm: bool) -> dict[str, Any]:
